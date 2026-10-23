@@ -4,7 +4,7 @@ from typing import Any
 
 import streamlit as st
 from neo4j import GraphDatabase
-from huggingface_hub import InferenceClient
+from groq import Groq
 
 st.set_page_config(page_title="Legal & Clinical Counselling Assistant", page_icon="⚖️", layout="wide")
 
@@ -97,29 +97,34 @@ def retrieve_keyword_evidence(query: str, domains: list[str], limit: int = 5):
 
 
 def generate_answer(query: str, evidence: list[dict[str, Any]]):
-    token = get_secret("HF_TOKEN")
-    model_name = get_secret("HF_MODEL", "Qwen/Qwen2.5-3B-Instruct")
+    token = get_secret("GROQ_API_KEY")
+    model_name = get_secret("GROQ_MODEL", "openai/gpt-oss-20b")
     if not token:
-        raise RuntimeError("Add HF_TOKEN in Streamlit Secrets to enable answer generation. It is a Hugging Face access token.")
+        raise RuntimeError("Add GROQ_API_KEY in Streamlit Secrets to enable answer generation. Create it in the Groq Console.")
     evidence_text = "\n\n".join(
         f"[{item['domain'].upper()} | {item['source']}]\n{item['text']}" for item in evidence
     ) or "No relevant knowledge graph evidence was retrieved. Do not invent evidence."
-    client = InferenceClient(model=model_name, token=token, timeout=120)
+    client = Groq(api_key=token, timeout=120)
     messages = [
         {"role": "system", "content": SYSTEM_PROMPT},
         {"role": "user", "content": f"User's concern:\n{query}\n\nRetrieved reference material:\n{evidence_text}\n\nRespond compassionately with practical next steps. Clearly state uncertainty and do not make unsupported legal or medical claims."}
     ]
-    response = client.chat_completion(messages, max_tokens=500, temperature=0.25)
+    response = client.chat.completions.create(
+        model=model_name,
+        messages=messages,
+        max_tokens=500,
+        temperature=0.25,
+    )
     return response.choices[0].message.content or "I couldn't generate a response. Please try again."
 
 
 st.title("⚖️ Legal & Clinical Counselling Assistant")
-st.caption("Adaptive domain routing · Knowledge graph evidence · Qwen response generation")
+st.caption("Adaptive domain routing · Knowledge graph evidence · Groq-hosted response generation")
 st.warning("This is an informational support tool, not a substitute for a qualified lawyer, clinician, or emergency service. Avoid entering names, addresses, case IDs, or other identifying details.")
 
 with st.sidebar:
     st.header("Connection status")
-    st.write("Answer model:", get_secret("HF_MODEL", "Qwen/Qwen2.5-3B-Instruct"))
+    st.write("Answer model:", get_secret("GROQ_MODEL", "openai/gpt-oss-20b"))
     for domain in ("legal", "medical", "commonsense"):
         driver, _, error = get_driver(domain)
         if error:
@@ -160,5 +165,5 @@ if submitted:
             st.subheader("Guidance")
             st.markdown(answer)
         except Exception as exc:
-            st.error("Could not generate the answer. Check the Hugging Face token, model access, and Streamlit logs.")
+            st.error("Could not generate the answer. Check GROQ_API_KEY, model availability, Groq rate limits, and Streamlit logs.")
             st.caption(f"Technical detail: {type(exc).__name__}: {str(exc)[:350]}")
