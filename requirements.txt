@@ -1,3 +1,9 @@
 
 streamlit
 requests
+Flask
+python-dotenv
+torch
+transformers
+sentence-transformers
+bitsandbytes
