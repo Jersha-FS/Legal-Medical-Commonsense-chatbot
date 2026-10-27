@@ -430,4 +430,4 @@ if submitted:
                 f"Technical detail: {type(exc).__name__}: "
                 f"{str(exc)[:350]}"
             )
-```
+
